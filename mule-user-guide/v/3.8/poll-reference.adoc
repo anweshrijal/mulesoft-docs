@@ -24,38 +24,28 @@ This document assumes that you are familiar with the link:/anypoint-studio/v/6/
 +
 image:poll_scope.png[poll_scope]
 +
-. Drag an element inside the poll scope, for example a *Twitter* connector. Mule uses this message processor to regularly poll the Twitter API for new data to process. +
+. Drag an element inside the poll scope, for example a *Database* connector. Mule uses this message processor to regularly poll the Database for new data to process. +
 +
 image:poll_connector.png[poll_connector]
 +
-. Configure the Twitter Connector:
+. Configure the Database Connector:
 .. Click the green plus sign to the right of *Connector Configuration*:
 +
 image:poll-twitter-properties.png[poll-twitter-properties]
 +
-.. Log into link:https://www.twitter.com[twitter.com] and sign in. If you don't have a Twitter account, create one.
-.. Change your browser location to https://apps.twitter.com.
-.. Click *Create New App*. You need to specify an app name, description, web site URL, a callback URL, and agree to their developer agreement. You can use `+http://www.example.com+` for both the web site URL and callback URL as placeholders until you have actual URLs (if you plan to make your app available to others).
-.. Click the *Keys and Access Tokens* tab, and click *Create my access token*.
-.. Copy the following credentials from your Twitter API application page to the Twitter connector configuration:
+.. Provide you Database connectivity information
 +
 image:poll-twitter-config.png[poll-twitter-config]
 +
-** Consumer Key
-** Consumer Secret
-** Access Token
-** Access Token Secret
 . Click *Test Connection* to ensure your credentials are correct.
 . Click *OK*.
-. In the Twitter properties screen, click the drop-down menu for *Operation* and:
+. In the Database properties screen, click the drop-down menu for *Operation* and:
 +
-`Get user timeline by screen name`
-+
-. Set the *Screen Name* to `MuleSoft`. You can leave the remainder of the settings at their default values:
+. Set the *Query Type* to `Parameterized` and type of query that would use the watermark variable:
 +
 image:twitter.png[Twitter connector properties settings]
 +
-. Add more message processors to your flow to perform specific business logic after polling for data. The example below uses a link:/mule-user-guide/v/3.8/logger-component-reference[logger] component. This logger uses the link:/mule-user-guide/v/3.8/mule-expression-language-mel[MEL] expression `#[payload]` to log the message payload collected by the Twitter connector every 1000 milliseconds.
+. Add more message processors to your flow to perform specific business logic after polling for data. The example below uses a link:/mule-user-guide/v/3.8/logger-component-reference[logger] component. This logger uses the link:/mule-user-guide/v/3.8/mule-expression-language-mel[MEL] expression `#[payload]` to log the message payload collected by the Database connector every 1000 milliseconds.
 +
 image:poll_flow.png[poll_flow]
 
@@ -114,32 +104,25 @@ image:poll_flow.png[poll_flow]
 
 == Complete Code Example
 
-[NOTE]
-====
-Keep in mind that for this example to work, you must manually configure the following values of the global Twitter connector (`twitter:config` element):
-
-* accessKey
-* accessSecret
-* consumerKey
-* consumerSecret
-====
-
 [source, xml, linenums]
 ----
-<mule xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:twitter="http://www.mulesoft.org/schema/mule/twitter" xmlns:http="http://www.mulesoft.org/schema/mule/http"
-xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
-xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:spring="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/twitter http://www.mulesoft.org/schema/mule/twitter/2.4/mule-twitter.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd">
-
-  <twitter:config name="Twitter" accessKey="" accessSecret="" consumerKey="" consumerSecret="" doc:name="Twitter">
-        <twitter:connection-pooling-profile initialisationPolicy="INITIALISE_ONE" exhaustedAction="WHEN_EXHAUSTED_GROW"/>
-    </twitter:config>
-
-    <flow name="test1" doc:name="test1" processingStrategy="synchronous">
-        <poll frequency="1000" doc:name="Poll">
-            <twitter:get-user-timeline-by-screen-name config-ref="Twitter"      doc:name="Twitter" screenName="MuleSoft" sinceId="#[flowVars['lastID']]"/>
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd">
+    <db:mysql-config name="MySQL_Configuration" host="${mysql.host}" port="${mysql.port}" user="${mysql.user}" password="${mysql.password}" database="${mysql.database}" doc:name="MySQL Configuration"/>
+    <flow name="pollerFlow" processingStrategy="synchronous">
+        <poll doc:name="Poll">
+            <fixed-frequency-scheduler frequency="5000"/>
+            <watermark variable="lastUpdatedVal" default-expression="0" selector="MAX" selector-expression="#[payload.LastUpdated]"/>
+            <db:select config-ref="MySQL_Configuration" doc:name="Database">
+                <db:parameterized-query><![CDATA[SELECT * FROM Employees where LastUpdated > #[flowVars.lastUpdatedVal];]]></db:parameterized-query>
+            </db:select>
         </poll>
-        <logger message="#[payload]" level="INFO" doc:name="Logger"/>
-
+        <logger level="INFO" doc:name="Logger"/>
     </flow>
 </mule>
 ----
@@ -243,7 +226,7 @@ If you define a value in the optional "`Object Store`" poll attribute, Mule sea
 [tab,title="Studio Visual Editor"]
 ....
 
-. Follow the steps above to create a flow that polls Twitter for data every 1000 milliseconds, then logs the message payload.
+. Follow the steps above to create a flow that polls Database for data every 1000 milliseconds, then logs the message payload.
 +
 image:poll-twitter-flow.png[poll-twitter-flow]
 +
@@ -254,11 +237,11 @@ All flows use an asynchronous processing strategy by default. If you do not set 
 +
 image:synchronous.png[synchronous]
 +
-. Click the Twitter connector and set *Since Id* to: +
+. Click the Database Connector and include a Where clause to incorporate *LastUpdated* to: +
 +
-`#[flowVars['lastID']]`
+`#[flowVars['lastUpdatedVal']]`
 +
-This value for the attribute instructs the connector to return only those tweets that have an ID greater than the value of the `lastID` variable. `lastID` is a flow variable that Mule creates, then updates every time the poll runs.
+This value for the attribute instructs the connector to return only those rows that have an value in column LastUpdated greater than the value of the `lastUpdatedVal` variable. `lastUpdatedVal` is a flow variable that Mule creates, then updates every time the poll runs.
 +
 image:poll-since-id-attribute.png[poll-since-id-attribute]
 +
@@ -284,44 +267,44 @@ image:watermark_enable.png[watermark_enable]
 |*Variable Name* |Mule creates two variables:
 
 • A persistent object store variable with the provided name
-• A flow variable that the Twitter Connector references in its `sinceID` filter.
+• A flow variable that the Connector references in query that it executes.
 
-*Value*: `lastID` +
+*Value*: `lastUpdatedVal` +
 *XML*: +
 
 [source]
 ----
-variable="lastID"
+variable="lastUpdatedVal"
 ----
 
-|*Default Expression* |The value that `lastID` uses the first time Mule executes the poll, or whenever the watermark can't be found.
+|*Default Expression* |The value that `lastUpdatedVal` uses the first time Mule executes the poll, or whenever the watermark can't be found.
 
-*Value*: `-1` +
+*Value*: `0` +
 *XML*: +
 
 [source]
 ----
-default-expression="-1"
+default-expression="0"
 ----
 
-|*Selector* |Pick the FIRST value returned by the Selector Expression to update the `lastID` variable each time the flow execution completes. In this case, it takes the ID of the first tweet in the generated output (that is, the most recent one).
+|*Selector* |Pick the MAX value returned by the Selector Expression to update the `lastUpdatedVal` variable each time the flow execution completes. In this case, it takes the maximum of the LastUpdated value in the generated output (that is, the most recent one).
 
-*Value*: `FIRST` +
+*Value*: `MAX` +
 *XML*: +
 
 [source]
 ----
-selector="FIRST"
+selector="MAX"
 ----
 
-|*Selector expression* |Return the ID of each object in the generated output, this value is passed on to the Selector.
+|*Selector expression* |Return the LastUpdated date of each record in the generated output, this value is passed on to the Selector.
 
-*Value*: `#[payload.id]` +
+*Value*: `#[payload.LastUpdated]` +
 *XML*: +
 
 [source]
 ----
-selector-expression="#[payload.id]"
+selector-expression="#[payload.LastUpdated]"
 ----
 
 |*Update Expression* |Not needed. Selector and Selector Expression are being used.
@@ -331,7 +314,7 @@ selector-expression="#[payload.id]"
 [tab,title="XML Editor or Standalone"]
 ....
 
-. Follow the steps above to create a flow that polls Twitter for data every 1000 milliseconds, then logs the message payload.
+. Follow the steps above to create a flow that polls Database for data every 1000 milliseconds, then logs the message payload.
 . In the flow, set the value of the *processingStrategy* attribute to *synchronous*. 
 +
 [TIP]
@@ -355,37 +338,42 @@ This keeps a persistent record of the last element that was processed, or the la
 +
 [source, xml]
 ----
-<watermark variable="lastID" default-expression="-1" selector="FIRST" selector-expression="#[payload.id]"/>
+<watermark variable="lastUpdatedVal" default-expression="0" selector="MAX" selector-expression="#[payload.LastUpdated]"/>
 ----
 +
-.. `variable="lastID"` - String - Mule creates two variables: +
+.. `variable="lastUpdatedVal"` - String - Mule creates two variables: +
 +
 ** A persistent object store variable with the provided name.
-** A flow variable that the Twitter Connector references in its  `sinceID` filter.
+** A flow variable that the Database Connector references in its parameterized query.
 +
-.. `default-expression= "-1"` - Integer - The value that `lastID` uses the first time Mule executes the poll, or whenever the watermark can't be found.
-.. `selector="FIRST"` - Pick the FIRST value returned by the Selector Expression to update the `lastID` variable each time the flow execution completes. In this case, it's the ID of the first tweet in the generated output (that is, the most recent one).
-.. `selector-expression="#[payload.id]"` - Return the ID of each object in the generated output, this value is passed on to the Selector.
-. Add `sinceId="#[flowVars['lastID']]"` to the Twitter connector statement:
+.. `default-expression= "0"` - Integer - The value that `lastUpdated` uses the first time Mule executes the poll, or whenever the watermark can't be found.
+.. `selector="MAX"` - Pick the MAX value returned by the Selector Expression to update the `lastUpdatedVal` variable each time the flow execution completes. In this case, it's the maximum of the lastUpdated value in the generated output (that is, the most recent one).
+.. `selector-expression="#[payload.lastUpdated]"` - Returns the lastUpdated value of each object in the generated output, this value is passed on to the Selector.
+. Add `where LastUpdated > #[flowVars.lastUpdatedVal]` to the Database connector statement:
 +
 [source, xml]
 ----
-<twitter:get-user-timeline-by-screen-name config-ref="Twitter__Configuration" screenName="MuleSoft" sinceId="#[flowVars['lastID']]" doc:name="Twitter"/>
+<db:select config-ref="MySQL_Configuration" doc:name="Database">
+	<db:parameterized-query><![CDATA[SELECT * FROM Employees where LastUpdated > #[flowVars.lastUpdatedVal];]]></db:parameterized-query>
+ </db:select>
 ----
 +
-The `sinceID` value is a string or Mule expression |Instructs the connector to return only those tweets with an ID greater than the value of the `lastID` variable. `lastID` is a flow variable that Mule creates, then updates every time the poll runs.
+The `lastUpdatedVal` value is a string or Mule expression |Instructs the connector to return only those columns with an LastUpdated value greater than the value of the `lastUpdatedVal` variable. `lastUpdatedVal` is a flow variable that Mule creates, then updates every time the poll runs.
 +
 The code for this section is:
 +
 [source, xml, linenums]
 ----
-<flow name="test1" doc:name="test1" processingStrategy="synchronous">
-    <poll frequency="1000" doc:name="Poll">
-        <watermark variable="lastID" default-expression="-1" selector="FIRST" selector-expression="#[payload.id]"/>
-            <twitter:get-user-timeline-by-screen-name config-ref="Twitter"      doc:name="Twitter" screenName="MuleSoft" sinceId="#[flowVars['lastID']]"/>
-    </poll>
-    <logger message="#[payload]" level="INFO" doc:name="Logger"/>
-</flow>
+    <flow name="pollerFlow" processingStrategy="synchronous">
+        <poll doc:name="Poll">
+            <fixed-frequency-scheduler frequency="5000"/>
+            <watermark variable="lastUpdatedVal" default-expression="0" selector="MAX" selector-expression="#[payload.LastUpdated]"/>
+            <db:select config-ref="MySQL_Configuration" doc:name="Database">
+                <db:parameterized-query><![CDATA[SELECT * FROM Employees where LastUpdated > #[flowVars.lastUpdatedVal];]]></db:parameterized-query>
+            </db:select>
+        </poll>
+        <logger level="INFO" doc:name="Logger"/>
+    </flow>
 ----
 
 ....
@@ -393,30 +381,25 @@ The code for this section is:
 
 == Example Code
 
-[NOTE]
-====
-Keep in mind that for this example to work, you must manually configure the following values of the global Twitter connector (`twitter:config` element):
-
-* accessKey
-* accessSecret
-* consumerKey
-* consumerSecret
-====
-
 [source,xml,linenums]
 ----
 <?xml version="1.0" encoding="UTF-8"?>
 
-<mule xmlns:twitter="http://www.mulesoft.org/schema/mule/twitter" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
-	xmlns:spring="http://www.springframework.org/schema/beans"
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
 http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
-http://www.mulesoft.org/schema/mule/twitter http://www.mulesoft.org/schema/mule/twitter/current/mule-twitter.xsd">
-    <twitter:config name="Twitter__Configuration" accessKey="<access_key>" accessSecret="<access_secret>" consumerKey="<consumer_key>" consumerSecret="<consumer_secret>" doc:name="Twitter: Configuration"/>
-    <flow name="pollFlow">
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd">
+    <db:mysql-config name="MySQL_Configuration" host="${mysql.host}" port="${mysql.port}" user="${mysql.user}" password="${mysql.password}" database="${mysql.database}" doc:name="MySQL Configuration"/>
+    <flow name="pollerFlow" processingStrategy="synchronous">
         <poll doc:name="Poll">
-            <twitter:get-user-timeline-by-screen-name config-ref="Twitter__Configuration" screenName="MuleSoft" doc:name="Twitter"/>
+            <fixed-frequency-scheduler frequency="5000"/>
+            <watermark variable="lastUpdatedVal" default-expression="0" selector="MAX" selector-expression="#[payload.LastUpdated]"/>
+            <db:select config-ref="MySQL_Configuration" doc:name="Database">
+                <db:parameterized-query><![CDATA[SELECT * FROM Employees where LastUpdated > #[flowVars.lastUpdatedVal];]]></db:parameterized-query>
+            </db:select>
         </poll>
         <logger level="INFO" doc:name="Logger"/>
     </flow>
@@ -436,7 +419,7 @@ Add code, such as the example below, into a Java class, wrapping your extra cust
 
 [source]
 ----
-#[flowVars['lastModifiedID']] = #[payload.id]
+#[flowVars['lastUpdatedVal']] = #[payload.LastUpdated]
 ----
 
 [CAUTION]
