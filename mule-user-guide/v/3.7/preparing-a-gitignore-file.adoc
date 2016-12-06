@@ -24,6 +24,10 @@ image:MujeProject.png[image]
 [NOTE]
 Studio stores the *`gitignore` file* as a hidden file in the project's root directory. To view the contents of the file, change the settings of your operating system to display hidden files.
 
+== Adding .gitignore File on an existing Project
+
+If you realize you created a project and now want to add `gitignore` file after the fact, copy the file or manually create the .gitignore file in the root directory of your existing project.
+
 == gitignore File Contents
 
 A `gitignore` file generally includes several files and folders that are commonly part of Java and Eclipse projects. A `gitignore` file prepared in Studio contains a few more Studio-specific elements (see table below). 
